@@ -20,6 +20,8 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), 
         
     async execute(interaction) {
+        // 🚨 修正点はありません。showModal()はそれ自体が応答なので、deferReplyやreplyは不要です。
+
         // 1. モーダル (フォーム) の作成
         const modal = new ModalBuilder()
             .setCustomId(EMBED_MODAL_CUSTOM_ID)
@@ -48,7 +50,7 @@ export default {
 
         modal.addComponents(firstActionRow, secondActionRow);
 
-        // 5. ユーザーにモーダルを表示
+        // 5. ユーザーにモーダルを表示 (ここで応答と見なされる)
         await interaction.showModal(modal);
     },
 };
