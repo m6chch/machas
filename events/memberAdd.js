@@ -26,7 +26,7 @@ export default {
                 .setColor('#2ecc71')
                 .setTitle('🚪 メンバー参加を検出')
                 .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-                .setDescription(`新しい挑戦者がサーバーに足を踏み入れました。`)
+                .setDescription(`誰かがサーバーに足を踏み入れました。`)
                 .addFields(
                     { name: 'ユーザー情報', value: `\`${member.user.tag}\` (<@${member.id}>)`, inline: false },
                     { name: '参加日時', value: joinTime, inline: true },
@@ -42,7 +42,7 @@ export default {
             
             // 案内メッセージを追記
             const guidanceMessage = 
-                `\n**管理者へ:** 以下で認証・ルール確認を促してください。\n` +
+                `\n**まっちゃ:** 以下で認証・ルールを確認してください。\n` +
                 `- **認証:** ${verifyChannel ? verifyChannel.toString() : 'チャンネルなし'}\n` +
                 `- **ルール:** ${rulesChannel ? rulesChannel.toString() : 'チャンネルなし'}`;
                 
