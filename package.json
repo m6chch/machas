@@ -1,0 +1,16 @@
+{
+  "name": "discord-bot-v14",
+  "version": "1.0.0",
+  "description": "A basic Discord bot using discord.js v14.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy-commands": "node deploy-commands.js"  <-- コマンド登録用のスクリプトを追加
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "fs": "^0.0.1-security"
+  },
+  "type": "module"
+}
