@@ -22,6 +22,9 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers), // メンバーのBan権限が必要
     
     async execute(interaction) {
+        // Discordの3秒応答制限を回避するため、まず処理中であることを応答します
+        await interaction.deferReply({ ephemeral: true });
+
         const targetInput = interaction.options.getString('target');
         const reason = interaction.options.getString('reason') || '理由なし';
         const guild = interaction.guild;
@@ -31,7 +34,7 @@ export default {
         let targetId = userIdMatch ? userIdMatch[0] : null;
 
         if (!targetId) {
-            return interaction.reply({ content: '有効なユーザーIDまたはメンションを入力してください。', ephemeral: true });
+            return interaction.editReply({ content: '有効なユーザーIDまたはメンションを入力してください。' });
         }
 
         // BANリストからユーザーを検索
@@ -40,7 +43,7 @@ export default {
             bannedUser = await guild.bans.fetch(targetId);
         } catch (error) {
             // BANされていない、またはIDが不正
-            return interaction.reply({ content: `ユーザーID **${targetId}** は現在BANされていません。`, ephemeral: true });
+            return interaction.editReply({ content: `ユーザーID **${targetId}** は現在BANされていません。` });
         }
 
         const targetUser = bannedUser.user;
@@ -70,10 +73,9 @@ export default {
 
         const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
-        await interaction.reply({ 
+        await interaction.editReply({ 
             embeds: [confirmEmbed], 
-            components: [row], 
-            ephemeral: true 
+            components: [row]
         });
 
         // 応答を待つ
@@ -114,11 +116,14 @@ export default {
             }
 
         } catch (e) {
-            await interaction.editReply({ 
-                content: '操作時間が経過したため、BAN解除をキャンセルしました。', 
-                components: [], 
-                embeds: [] 
-            });
+            // タイムアウト後の再応答を防ぐ
+             if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '操作時間が経過したため、BAN解除をキャンセルしました。', 
+                    components: [], 
+                    embeds: [] 
+                }).catch(() => {});
+            }
         }
     },
 };
