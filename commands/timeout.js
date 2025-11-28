@@ -35,20 +35,26 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers), // メンバーの管理権限が必要
     
     async execute(interaction) {
+        // Discordの3秒応答制限を回避するため、まず処理中であることを応答します
+        await interaction.deferReply({ ephemeral: true });
+
         const targetMember = interaction.options.getMember('target');
         const reason = interaction.options.getString('reason') || '理由なし';
         
-        // Bot自身の操作を防ぐ
+        // ターゲットチェック
+        if (!targetMember) {
+            return interaction.editReply({ content: '指定されたユーザーはこのサーバーのメンバーではありません。' });
+        }
         if (targetMember.id === interaction.client.user.id) {
-            return interaction.reply({ content: 'Bot自身をタイムアウトすることはできません。', ephemeral: true });
+            return interaction.editReply({ content: 'Bot自身をタイムアウトすることはできません。' });
         }
 
         // 権限チェック
         if (targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
-            return interaction.reply({ content: 'そのユーザーはあなたより上位のロールを持っているため、タイムアウトできません。', ephemeral: true });
+            return interaction.editReply({ content: 'そのユーザーはあなたより上位のロールを持っているため、タイムアウトできません。' });
         }
         if (!targetMember.manageable) {
-            return interaction.reply({ content: 'Botがこのユーザーをタイムアウトする権限がありません。Botのロールがユーザーより上位にありません。', ephemeral: true });
+            return interaction.editReply({ content: 'Botがこのユーザーをタイムアウトする権限がありません。Botのロールがユーザーより上位にありません。' });
         }
 
         // タイムアウト時間選択のセレクトメニュー
@@ -73,10 +79,10 @@ export default {
             )
             .setTimestamp();
 
-        await interaction.reply({ 
+        // deferReply後にeditReplyで実際のコンテンツを送信
+        await interaction.editReply({ 
             embeds: [embed], 
-            components: [row], 
-            ephemeral: true 
+            components: [row]
         });
 
         // コマンド実行者からの応答（セレクトメニューの選択）を待つ
@@ -85,7 +91,7 @@ export default {
             const confirmation = await interaction.channel.awaitMessageComponent({ 
                 filter, 
                 componentType: ComponentType.SelectMenu, 
-                time: 60000 
+                time: 60000 // 60秒待機
             });
 
             const durationMs = parseInt(confirmation.values[0]);
@@ -115,7 +121,7 @@ export default {
             const finalConfirmation = await interaction.channel.awaitMessageComponent({
                 filter: finalFilter,
                 componentType: ComponentType.Button,
-                time: 30000
+                time: 30000 // 30秒待機
             });
 
             if (finalConfirmation.customId === 'timeout_confirm') {
@@ -147,12 +153,14 @@ export default {
             }
 
         } catch (e) {
-            console.error(e);
-            await interaction.editReply({ 
-                content: '操作時間が経過したため、タイムアウトをキャンセルしました。', 
-                components: [], 
-                embeds: [] 
-            });
+            // タイムアウト後の再応答を防ぐ
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '操作時間が経過したため、タイムアウトをキャンセルしました。', 
+                    components: [], 
+                    embeds: [] 
+                }).catch(() => {});
+            }
         }
     },
 };
