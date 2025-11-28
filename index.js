@@ -4,13 +4,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http'; // Webサーバー機能用
+import https from 'https'; // 24時間稼働用（自分へのPing送信）
 
 // discord.jsから必要なクラスをインポート
 import { 
     Client, 
     GatewayIntentBits, 
     Collection, 
-    Events // Eventsをインポート
+    Events 
 } from 'discord.js';
 
 // ESモジュールの環境で__dirnameを再現
@@ -19,6 +20,8 @@ const __dirname = path.dirname(__filename);
 
 // 環境変数からトークンを取得
 const token = process.env.DISCORD_TOKEN;
+// RenderのURL (自分のサービスURL)
+const MY_RENDER_URL = 'https://macha-9zsc.onrender.com';
 
 // ----------------------------------------------------
 // 💡 インテンツ (Intents) の設定
@@ -27,14 +30,14 @@ const client = new Client({
     intents: [
         // ギルド（サーバー）関連の基本インテンツ
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,         
+        GatewayIntentBits.GuildMembers,          
         GatewayIntentBits.GuildBans,
         GatewayIntentBits.GuildEmojisAndStickers,
         GatewayIntentBits.GuildIntegrations,
         GatewayIntentBits.GuildWebhooks,
         GatewayIntentBits.GuildInvites,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildPresences,       
+        GatewayIntentBits.GuildPresences,        
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildMessageTyping,
@@ -74,7 +77,7 @@ if (fs.existsSync(eventsPath)) {
             } else {
                 client.on(event.name, (...args) => event.execute(...args, client));
             }
-            console.log(`[イベントローダー] ✅ イベントファイル: ${file} (イベント名: ${event.name}) を読み込みました。`); 
+            console.log(`[イベントローダー] ✅ イベントファイル: ${file} (イベント名: ${event.name}) を読み込みました。`);    
         } else {
             console.warn(`[イベントローダー] ⚠️ ${file} には必要な "name" プロパティがありません。`);
         }
@@ -115,29 +118,9 @@ if (fs.existsSync(commandsPath)) {
 // ----------------------------------------------------
 // 🤝 スラッシュコマンドの実行イベント
 // ----------------------------------------------------
-client.on(Events.InteractionCreate, async interaction => {
-    // スラッシュコマンド以外は無視
-    if (!interaction.isChatInputCommand()) return;
-
-    const command = client.commands.get(interaction.commandName);
-
-    if (!command) {
-        console.error(`[実行エラー] ${interaction.commandName} というコマンドは見つかりませんでした。`);
-        return;
-    }
-
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(`[実行時エラー] コマンド ${interaction.commandName} の実行中にエラーが発生しました。`, error);
-        // エラー応答をユーザーに送信
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'コマンドの実行中にエラーが発生しました！', ephemeral: true });
-        } else {
-            await interaction.reply({ content: 'コマンドの実行中にエラーが発生しました！', ephemeral: true });
-        }
-    }
-});
+// 🚨 注意: ここにあった直接的な InteractionCreate 処理は削除しました。
+// すべて events/ フォルダ内のファイル (commandHandler.jsなど) で処理されます。
+// これにより「Unknown interaction」などのエラーが解消されます。
 
 
 // ----------------------------------------------------
@@ -155,6 +138,19 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
     console.log(`\n[Webサーバー] 🌐 Pingサーバーがポート ${PORT} で起動しました。`);
+    
+    // ⏰ サーバー起動後に自動Ping（Keep-Alive）を開始
+    // Renderは15分でスリープするため、10分(600000ms)ごとにアクセスする
+    setInterval(() => {
+        https.get(MY_RENDER_URL, (res) => {
+            // ステータスコードのみログに出して生存確認（詳細ログは邪魔になるので省略）
+            // console.log(`[Keep-Alive] Ping sent to ${MY_RENDER_URL}. Status: ${res.statusCode}`);
+        }).on('error', (err) => {
+            console.error(`[Keep-Alive] Ping failed: ${err.message}`);
+        });
+    }, 10 * 60 * 1000); 
+    
+    console.log(`[Keep-Alive] ⏰ 14分間隔の自動Pingを開始しました: ${MY_RENDER_URL}`);
 });
 
 // ----------------------------------------------------
