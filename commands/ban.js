@@ -22,6 +22,9 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers), // メンバーのBan権限が必要
     
     async execute(interaction) {
+        // Discordの3秒応答制限を回避するため、まず処理中であることを応答します
+        await interaction.deferReply({ ephemeral: true });
+
         const targetInput = interaction.options.getString('target');
         const reason = interaction.options.getString('reason') || '理由なし';
 
@@ -30,16 +33,16 @@ export default {
         let targetId = userIdMatch ? userIdMatch[0] : null;
 
         if (!targetId) {
-             return interaction.reply({ content: '有効なユーザーのメンションまたはユーザーIDを入力してください。', ephemeral: true });
+             return interaction.editReply({ content: '有効なユーザーのメンションまたはユーザーIDを入力してください。' });
         }
 
         // 実行者自身のBANを防ぐ
         if (targetId === interaction.user.id) {
-            return interaction.reply({ content: '自分自身をBANすることはできません。', ephemeral: true });
+            return interaction.editReply({ content: '自分自身をBANすることはできません。' });
         }
         // Bot自身のBANを防ぐ
         if (targetId === interaction.client.user.id) {
-            return interaction.reply({ content: 'Bot自身をBANすることはできません。', ephemeral: true });
+            return interaction.editReply({ content: 'Bot自身をBANすることはできません。' });
         }
 
         const guild = interaction.guild;
@@ -47,16 +50,16 @@ export default {
         let targetMember = await guild.members.fetch(targetId).catch(() => null);
         
         if (!targetUser) {
-             return interaction.reply({ content: '指定されたIDのユーザーが見つかりません。', ephemeral: true });
+             return interaction.editReply({ content: '指定されたIDのユーザーが見つかりません。' });
         }
 
         // メンバーとして存在する場合の権限チェック
         if (targetMember) {
             if (targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
-                return interaction.reply({ content: 'そのユーザーはあなたより上位のロールを持っているため、BANできません。', ephemeral: true });
+                return interaction.editReply({ content: 'そのユーザーはあなたより上位のロールを持っているため、BANできません。' });
             }
             if (!targetMember.bannable) {
-                return interaction.reply({ content: 'BotがこのユーザーをBANする権限がありません。Botのロールがユーザーより上位にありません。', ephemeral: true });
+                return interaction.editReply({ content: 'BotがこのユーザーをBANする権限がありません。Botのロールがユーザーより上位にありません。' });
             }
         }
         
@@ -85,10 +88,9 @@ export default {
 
         const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
-        await interaction.reply({ 
+        await interaction.editReply({ 
             embeds: [confirmEmbed], 
-            components: [row], 
-            ephemeral: true 
+            components: [row]
         });
 
         // 応答を待つ
@@ -129,11 +131,14 @@ export default {
             }
 
         } catch (e) {
-            await interaction.editReply({ 
-                content: '操作時間が経過したため、BANをキャンセルしました。', 
-                components: [], 
-                embeds: [] 
-            });
+            // タイムアウト後の再応答を防ぐ
+             if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '操作時間が経過したため、BANをキャンセルしました。', 
+                    components: [], 
+                    embeds: [] 
+                }).catch(() => {});
+            }
         }
     },
 };
