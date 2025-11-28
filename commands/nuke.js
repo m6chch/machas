@@ -9,7 +9,7 @@ import {
 
 // 🚨 注意: チャンネルリセット後に送信する画像のURLをここに設定してください。
 // Design.pngをDiscordなどにアップロードして、直リンクURLを取得する必要があります。
-const NUKE_IMAGE_URL = 'https://placehold.co/600x400/2ecc71/white?text=CHANNEL+RESET'; 
+const NUKE_IMAGE_URL = 'https://raw.githubusercontent.com/m6chch/machas/refs/heads/main/Design.png'; 
 // ↑ 現在はプレースホルダー画像を使用しています。
 
 export default {
