@@ -22,25 +22,33 @@ export default {
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers), // メンバーの管理権限が必要
     
     async execute(interaction) {
+        // Discordの3秒応答制限を回避するため、まず処理中であることを応答します
+        await interaction.deferReply({ ephemeral: true });
+
         const targetMember = interaction.options.getMember('target');
         const reason = interaction.options.getString('reason') || '理由なし';
 
+        // ターゲットチェック
+        if (!targetMember) {
+            return interaction.editReply({ content: '指定されたユーザーはこのサーバーのメンバーではありません。' });
+        }
+        
         // タイムアウト中かチェック
         if (!targetMember.communicationDisabledUntilTimestamp) {
-            return interaction.reply({ content: `<@${targetMember.id}> は現在タイムアウトされていません。`, ephemeral: true });
+            return interaction.editReply({ content: `<@${targetMember.id}> は現在タイムアウトされていません。` });
         }
 
         // Bot自身の操作を防ぐ
         if (targetMember.id === interaction.client.user.id) {
-            return interaction.reply({ content: 'Bot自身を操作することはできません。', ephemeral: true });
+            return interaction.editReply({ content: 'Bot自身を操作することはできません。' });
         }
         
         // 権限チェック
         if (targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
-            return interaction.reply({ content: 'そのユーザーはあなたより上位のロールを持っているため、タイムアウトを解除できません。', ephemeral: true });
+            return interaction.editReply({ content: 'そのユーザーはあなたより上位のロールを持っているため、タイムアウトを解除できません。' });
         }
         if (!targetMember.manageable) {
-            return interaction.reply({ content: 'Botがこのユーザーのタイムアウトを解除する権限がありません。Botのロールがユーザーより上位にありません。', ephemeral: true });
+            return interaction.editReply({ content: 'Botがこのユーザーのタイムアウトを解除する権限がありません。Botのロールがユーザーより上位にありません。' });
         }
 
         // 確認Embedとボタン
@@ -66,10 +74,9 @@ export default {
 
         const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
-        await interaction.reply({ 
+        await interaction.editReply({ 
             embeds: [confirmEmbed], 
-            components: [row], 
-            ephemeral: true 
+            components: [row]
         });
 
         // 応答を待つ
@@ -110,11 +117,14 @@ export default {
             }
 
         } catch (e) {
-            await interaction.editReply({ 
-                content: '操作時間が経過したため、タイムアウト解除をキャンセルしました。', 
-                components: [], 
-                embeds: [] 
-            });
+            // タイムアウト後の再応答を防ぐ
+             if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ 
+                    content: '操作時間が経過したため、タイムアウト解除をキャンセルしました。', 
+                    components: [], 
+                    embeds: [] 
+                }).catch(() => {});
+            }
         }
     },
 };
