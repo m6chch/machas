@@ -126,15 +126,17 @@ export default {
         ),
 
     async execute(interaction, client) {
+        // 処理が3秒を超過する可能性に備え、まずdeferReplyで応答します (NEW!)
+        await interaction.deferReply({ ephemeral: false }); 
+
         // ユーザーが選択したサブコマンド名を取得 ('nyanko', 'punipuni', または 'tyuijiko')
         const selectedMenu = interaction.options.getSubcommand();
         const item = MENU_ITEMS[selectedMenu];
 
-        // 応答は一度きりなので、deferReplyは不要。直接replyします。
-
         if (!item) {
             // 万が一、定義されていないサブコマンドが実行された場合
-            return interaction.reply({ 
+            // deferReplyを使っているため、replyではなくeditReplyを使用 (FIXED)
+            return interaction.editReply({ 
                 content: '❌ 不正なメニューが選択されました。', 
                 ephemeral: true 
             });
@@ -155,8 +157,8 @@ export default {
             })
             .setTimestamp();
         
-        // Embedを送信 (一度きりの応答)
-        await interaction.reply({
+        // deferReplyで保留した応答をeditReplyで編集して送信します (FIXED)
+        await interaction.editReply({
             embeds: [resultEmbed],
             // サブコマンド形式にしたため、メニューコンポーネントは不要
             components: [] 
