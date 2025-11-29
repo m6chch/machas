@@ -77,6 +77,25 @@ const MENU_ITEMS = {
   (※スキル書カンストには秘伝書カンストも含まれます)
 \`\`\`
         `
+    },
+    // 3番目の選択肢: 注意事項 (NEW!)
+    'tyuijiko': {
+        title: '⚠️ 代行についての注意事項',
+        color: '#e74c3c', // 赤 (警告色)
+        description: 'ご依頼前に必ずお読みください。ご依頼された時点で同意したものとみなします。',
+        content: () => `
+\`\`\`markdown
+# 代行についての注意事項
+
+- 代行にはチートを使用しますのでBANは自己責任でお願いいたします。
+  ※ぷにぷには希望があれば＋５００円で正規代行いたします。
+- 代行中に許可を得ずにログインした場合、代行を中止いたします。
+  ※あなたでいなくともアカウントにログイン履歴があった時点で中止します（サブ垢も含む）。
+- メアパスのミスは３回目までセーフです。４回目からは半額返金し、中止します。
+- ぷにぷにのワイポ代行を頼む際は、ステージを裏ステまで進めておいてください。（進んでいない場合は代行中止）
+- ワイポ代行を頼んだ場合は強敵取得無料（正規代行を頼む際は不可）。
+\`\`\`
+        `
     }
 };
 
@@ -98,15 +117,20 @@ export default {
             subcommand
                 .setName('punipuni')
                 .setDescription(MENU_ITEMS.punipuni.description)
+        )
+        // --- サブコマンド: 注意事項 (NEW!) ---
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('tyuijiko')
+                .setDescription(MENU_ITEMS.tyuijiko.description)
         ),
 
     async execute(interaction, client) {
-        // ユーザーが選択したサブコマンド名を取得 ('nyanko' または 'punipuni')
+        // ユーザーが選択したサブコマンド名を取得 ('nyanko', 'punipuni', または 'tyuijiko')
         const selectedMenu = interaction.options.getSubcommand();
         const item = MENU_ITEMS[selectedMenu];
 
         // 応答は一度きりなので、deferReplyは不要。直接replyします。
-        // interaction.deferReply({ ephemeral: false });
 
         if (!item) {
             // 万が一、定義されていないサブコマンドが実行された場合
@@ -125,7 +149,7 @@ export default {
             .setTitle(item.title)
             .setDescription(item.description)
             .addFields({ 
-                name: '--- 料金・詳細情報 ---', 
+                name: '--- 詳細情報 ---', 
                 value: contentText, 
                 inline: false 
             })
