@@ -126,20 +126,36 @@ export default {
         ),
 
     async execute(interaction, client) {
-        // 処理が3秒を超過する可能性に備え、まずdeferReplyで応答します (NEW!)
-        await interaction.deferReply({ ephemeral: false }); 
+        // 処理が3秒を超過する可能性に備え、まずdeferReplyで応答します 
+        // 🚨 既に応答済みでないか確認 (二重応答の試行を避ける)
+        if (!interaction.deferred && !interaction.replied) {
+            try {
+                await interaction.deferReply({ ephemeral: false });
+            } catch (e) {
+                // 3秒ルールを超過した場合は、この時点でInteractionが無効になっているため、処理を終了します。
+                console.error("deferReply中にエラーが発生しました。3秒ルールを超過した可能性があります。", e);
+                return;
+            }
+        }
 
         // ユーザーが選択したサブコマンド名を取得 ('nyanko', 'punipuni', または 'tyuijiko')
         const selectedMenu = interaction.options.getSubcommand();
         const item = MENU_ITEMS[selectedMenu];
 
         if (!item) {
-            // 万が一、定義されていないサブコマンドが実行された場合
-            // deferReplyを使っているため、replyではなくeditReplyを使用 (FIXED)
-            return interaction.editReply({ 
-                content: '❌ 不正なメニューが選択されました。', 
-                ephemeral: true 
-            });
+            if (interaction.deferred || interaction.replied) {
+                // 不正なメニューの場合、編集して通知
+                return interaction.editReply({ 
+                    content: '❌ 不正なメニューが選択されました。', 
+                    ephemeral: true 
+                }).catch(() => {}); // エラーハンドリングを追加
+            } else {
+                // 応答前であれば、ephemeralで直接通知
+                return interaction.reply({ 
+                    content: '❌ 不正なメニューが選択されました。', 
+                    ephemeral: true 
+                }).catch(() => {}); // エラーハンドリングを追加
+            }
         }
 
         // 選択されたメニューの内容を取得
@@ -157,11 +173,18 @@ export default {
             })
             .setTimestamp();
         
-        // deferReplyで保留した応答をeditReplyで編集して送信します (FIXED)
-        await interaction.editReply({
-            embeds: [resultEmbed],
-            // サブコマンド形式にしたため、メニューコンポーネントは不要
-            components: [] 
-        });
+        // deferReplyで保留した応答をeditReplyで編集して送信します 
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({
+                embeds: [resultEmbed],
+                components: [] 
+            }).catch(error => console.error("editReply中にエラーが発生しました:", error));
+        } else {
+             // 万が一deferReplyが失敗した場合に備えて、直接replyを試みます
+            await interaction.reply({
+                embeds: [resultEmbed],
+                components: [] 
+            }).catch(error => console.error("reply中にエラーが発生しました:", error));
+        }
     },
 };
