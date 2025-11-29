@@ -1,10 +1,6 @@
 import { 
     SlashCommandBuilder, 
     EmbedBuilder, 
-    ActionRowBuilder, 
-    StringSelectMenuBuilder, 
-    ComponentType, 
-    time,
     PermissionsBitField
 } from 'discord.js';
 
@@ -21,7 +17,7 @@ const MENU_ITEMS = {
 \`\`\`markdown
 # 【にゃんこ大戦争】代行料金一覧
 
-## 💰 メニュー 
+## 💰 メニュー (個別依頼時 各10円)
 - 猫缶: 48,000
 - XP: 99,999,999
 - NP: 9,999
@@ -46,8 +42,9 @@ const MENU_ITEMS = {
 - 全キャラレベルMAX
 - 施設レベルMAX
 
-## ✨ 全部200円セット (指定を除く)
-- 上記各10円
+## ✨ 全部200円セット (指定を除く全項目)
+**指定キャラ開放、指定キャラ形態解放以外のすべてのメニュー**が200円です。
+- 上記のメニュー全てが含まれます。
 
 ## 👑 個別・指定メニュー (要見積もり)
 以下のメニューは200円セットに含まれず、個別料金・お問い合わせが必要です。
@@ -60,7 +57,7 @@ const MENU_ITEMS = {
     'punipuni': {
         title: '👾 ぷにぷに代行メニュー',
         color: '#9b59b6', // 紫
-        description: 'ぷにぷにに関する代行メニューです。',
+        description: 'ぷにぷにに関する代行メニューです。料金と詳細をご確認ください。',
         content: () => `
 \`\`\`markdown
 # 【妖怪ウォッチぷにぷに】代行料金一覧
@@ -84,114 +81,61 @@ const MENU_ITEMS = {
 };
 
 export default {
+    // 従来のSlashCommandBuilderにサブコマンドを追加
     data: new SlashCommandBuilder()
         .setName('menu')
-        .setDescription('セレクトメニューから選択した代行サービス情報をEmbedで表示します。')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.SendMessages), 
-    
-    async execute(interaction, client) {
-        // 処理中であることを応答（3秒ルール回避）
-        await interaction.deferReply({ ephemeral: false }); // 全員に見えるように ephemeral: false
-
-        // -----------------
-        // 1. セレクトメニューの作成
-        // -----------------
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('menu_selector')
-            .setPlaceholder('表示したい代行メニューを選択してください...')
-            .addOptions([
-                {
-                    label: 'にゃんこ大戦争',
-                    description: '猫缶、XP、キャラ開放などの代行メニューを表示します。',
-                    value: 'nyanko',
-                    emoji: '🐈'
-                },
-                {
-                    label: '妖怪ウォッチぷにぷに',
-                    description: 'ワイポイント、強敵入手などの代行メニューを表示します。',
-                    value: 'punipuni',
-                    emoji: '👾'
-                }
-            ]);
-
-        const row = new ActionRowBuilder().addComponents(selectMenu);
-
-        const initialEmbed = new EmbedBuilder()
-            .setColor('#2ecc71') // Green
-            .setTitle('📌 代行サービス メニュー')
-            .setDescription('下のドロップダウンメニューから、ご希望のゲームを選択してください。');
-
-        // 応答を編集してセレクトメニューを表示
-        await interaction.editReply({ 
-            embeds: [initialEmbed], 
-            components: [row] 
-        });
-
-        // -----------------
-        // 2. ユーザーの選択を待機
-        // -----------------
-        const filter = i => i.customId === 'menu_selector' && i.user.id === interaction.user.id;
+        .setDescription('代行サービス情報をEmbedで表示します。')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.SendMessages) 
         
-        try {
-            const collector = interaction.channel.createMessageComponentCollector({ 
-                filter, 
-                componentType: ComponentType.SelectMenu, 
-                time: 60000 // 60秒でタイムアウト
+        // --- サブコマンド: にゃんこ ---
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('nyanko')
+                .setDescription(MENU_ITEMS.nyanko.description)
+        )
+        // --- サブコマンド: ぷにぷに ---
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('punipuni')
+                .setDescription(MENU_ITEMS.punipuni.description)
+        ),
+
+    async execute(interaction, client) {
+        // ユーザーが選択したサブコマンド名を取得 ('nyanko' または 'punipuni')
+        const selectedMenu = interaction.options.getSubcommand();
+        const item = MENU_ITEMS[selectedMenu];
+
+        // 応答は一度きりなので、deferReplyは不要。直接replyします。
+        // interaction.deferReply({ ephemeral: false });
+
+        if (!item) {
+            // 万が一、定義されていないサブコマンドが実行された場合
+            return interaction.reply({ 
+                content: '❌ 不正なメニューが選択されました。', 
+                ephemeral: true 
             });
-
-            collector.on('collect', async i => {
-                const selectedValue = i.values[0];
-                const item = MENU_ITEMS[selectedValue];
-                
-                if (!item) {
-                    await i.update({ content: '無効なメニュー項目が選択されました。', components: [row] });
-                    return;
-                }
-
-                // 選択されたメニューの内容を取得
-                const contentText = item.content(interaction.guild, null, client);
-
-                // 新しいEmbedの作成
-                const resultEmbed = new EmbedBuilder()
-                    .setColor(item.color)
-                    .setTitle(item.title)
-                    .setDescription(item.description)
-                    .addFields({ 
-                        name: '--- 料金・詳細情報 ---', 
-                        value: contentText, 
-                        inline: false 
-                    })
-                    .setTimestamp();
-                
-                // 元のセレクトメニューのメッセージを新しい内容で更新
-                await i.update({
-                    content: `**${item.title}** の情報を表示しました。再度選択することも可能です。`,
-                    embeds: [resultEmbed],
-                    components: [row] // 再度選択できるようにコンポーネントは維持
-                });
-            });
-
-            collector.on('end', collected => {
-                if (collected.size === 0) {
-                     // タイムアウトした場合は、元のメッセージを編集（コンポーネントを削除）
-                     interaction.editReply({
-                         content: 'メニューの操作時間が経過しました。再度実行するには `/menu` を使用してください。',
-                         components: [],
-                         embeds: [initialEmbed]
-                     }).catch(() => {});
-                }
-            });
-
-        } catch (e) {
-            console.error('メニュー操作エラー:', e);
-            // 処理が失敗した場合の対応
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ 
-                    content: 'メニューの処理中に予期せぬエラーが発生しました。',
-                    components: [],
-                    embeds: []
-                }).catch(() => {});
-            }
         }
+
+        // 選択されたメニューの内容を取得
+        const contentText = item.content(interaction.guild, null, client);
+
+        // 新しいEmbedの作成
+        const resultEmbed = new EmbedBuilder()
+            .setColor(item.color)
+            .setTitle(item.title)
+            .setDescription(item.description)
+            .addFields({ 
+                name: '--- 料金・詳細情報 ---', 
+                value: contentText, 
+                inline: false 
+            })
+            .setTimestamp();
+        
+        // Embedを送信 (一度きりの応答)
+        await interaction.reply({
+            embeds: [resultEmbed],
+            // サブコマンド形式にしたため、メニューコンポーネントは不要
+            components: [] 
+        });
     },
 };
