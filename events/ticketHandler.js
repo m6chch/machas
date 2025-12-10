@@ -11,9 +11,9 @@ import {
 } from 'discord.js';
 
 // --- 設定ID ---
-const CATEGORY_ID = '1442346991215444140'; // チケット作成先カテゴリー
-const LOG_CHANNEL_ID = '1442348017662296144'; // ログ送信先チャンネル
-const STAFF_ROLE_ID = '1442186289561735349'; // スタッフロールID
+const CATEGORY_ID = '1448291116053954570'; // チケット作成先カテゴリー
+const LOG_CHANNEL_ID = '1448290669465702534'; // ログ送信先チャンネル
+const STAFF_ROLE_ID = '1448250761376170005'; // スタッフロールID
 
 // --- クールタイム管理用 (Map) ---
 // キー: チャンネルID, 値: 最後に呼び出した時間(timestamp)
