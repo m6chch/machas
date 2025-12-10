@@ -1,6 +1,6 @@
 import { Events, EmbedBuilder } from 'discord.js';
 
-const TARGET_GUILD_ID = '1442170023832584478';
+const TARGET_GUILD_ID = '1448245012239356027';
 const LOG_CHANNEL_ID = '1442348085253640394';
 
 export default {
