@@ -11,7 +11,8 @@ import {
     Client, 
     GatewayIntentBits, 
     Collection, 
-    Events 
+    Events,
+    // EmbedBuilder を追加 (もしEmbedを使うなら)
 } from 'discord.js';
 
 // ESモジュールの環境で__dirnameを再現
@@ -19,7 +20,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 環境変数からトークンを取得
-const token = process.env.DISCORD_TOKEN;
+// 🚨 ここをRenderに設定した環境変数名に合わせる必要があります
+const token = process.env.DISCORD_TOKEN; 
 // RenderのURL (自分のサービスURL)
 const MY_RENDER_URL = 'https://macha-9zsc.onrender.com';
 
@@ -77,7 +79,7 @@ if (fs.existsSync(eventsPath)) {
             } else {
                 client.on(event.name, (...args) => event.execute(...args, client));
             }
-            console.log(`[イベントローダー] ✅ イベントファイル: ${file} (イベント名: ${event.name}) を読み込みました。`);    
+            console.log(`[イベントローダー] ✅ イベントファイル: ${file} (イベント名: ${event.name}) を読み込みました。`);      
         } else {
             console.warn(`[イベントローダー] ⚠️ ${file} には必要な "name" プロパティがありません。`);
         }
@@ -116,14 +118,6 @@ if (fs.existsSync(commandsPath)) {
 }
 
 // ----------------------------------------------------
-// 🤝 スラッシュコマンドの実行イベント
-// ----------------------------------------------------
-// 🚨 注意: ここにあった直接的な InteractionCreate 処理は削除しました。
-// すべて events/ フォルダ内のファイル (commandHandler.jsなど) で処理されます。
-// これにより「Unknown interaction」などのエラーが解消されます。
-
-
-// ----------------------------------------------------
 // 🌐 24時間稼働のためのWebサーバー設定
 // ----------------------------------------------------
 
@@ -140,25 +134,45 @@ server.listen(PORT, () => {
     console.log(`\n[Webサーバー] 🌐 Pingサーバーがポート ${PORT} で起動しました。`);
     
     // ⏰ サーバー起動後に自動Ping（Keep-Alive）を開始
-    // Renderは15分でスリープするため、10分(600000ms)ごとにアクセスする
-    setInterval(() => {
-        https.get(MY_RENDER_URL, (res) => {
-            // ステータスコードのみログに出して生存確認（詳細ログは邪魔になるので省略）
-            // console.log(`[Keep-Alive] Ping sent to ${MY_RENDER_URL}. Status: ${res.statusCode}`);
-        }).on('error', (err) => {
-            console.error(`[Keep-Alive] Ping failed: ${err.message}`);
-        });
-    }, 10 * 60 * 1000); 
+    // Renderは15分でスリープするため、14分間隔でアクセスする
+    const PING_INTERVAL_MS = 14 * 60 * 1000;
     
-    console.log(`[Keep-Alive] ⏰ 14分間隔の自動Pingを開始しました: ${MY_RENDER_URL}`);
+    // 初回Pingは少し遅延させて、Botの起動を優先
+    setTimeout(() => {
+        setInterval(() => {
+            https.get(MY_RENDER_URL, (res) => {
+                // Pingステータスログはコンソールを圧迫するため、簡潔に
+            }).on('error', (err) => {
+                console.error(`[Keep-Alive] Ping failed: ${err.message}`);
+            });
+        }, PING_INTERVAL_MS);
+    }, 60000); // 1分後にPingを開始
+    
+    console.log(`[Keep-Alive] ⏰ ${PING_INTERVAL_MS / 60000}分間隔の自動Pingを開始しました: ${MY_RENDER_URL}`);
 });
 
+
 // ----------------------------------------------------
-// 🔑 ログイン
+// 🔑 ログインと起動チェック
 // ----------------------------------------------------
 
+// 🚨 【重要】Botがオンラインになったことを確認するためのログ
+client.once(Events.ClientReady, c => {
+    console.log(`\n[Bot] ✅ ログイン成功! Logged in as ${c.user.tag} (${c.user.id})`);
+    client.user.setActivity('代行業務', { type: 4 }); // Botのステータスを設定 (4=Custom Status)
+});
+
+// ログイン前にトークンの有効性を確認
+if (!token) {
+    console.error("\n[Bot] ❌ エラー: DISCORD_TOKEN が環境変数から読み取れませんでした。Renderの設定を確認してください。");
+    // プロセスを終了
+    process.exit(1); 
+}
+
+// ログイン実行
 client.login(token);
 
+// ログインエラー時に詳細な情報を出力
 client.on('error', (error) => {
     console.error('Discordクライアントでエラーが発生しました:', error);
 });
