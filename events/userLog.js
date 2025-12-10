@@ -5,7 +5,7 @@ import {
     PermissionFlagsBits 
 } from 'discord.js';
 
-const TARGET_GUILD_ID = '1442170023832584478'; // 監視対象サーバー
+const TARGET_GUILD_ID = '1448245012239356027'; // 監視対象サーバー
 const USER_LOG_CHANNEL_ID = '1442348056048570512'; // ユーザー操作ログチャンネル
 
 // ユーザーログ (ロール付与/剥奪/TIMEOUT/KICK) のためのイベントハンドラ
