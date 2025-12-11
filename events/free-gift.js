@@ -7,16 +7,15 @@ import {
 // ----------------------------------------------------
 // ⚠️ 設定: ログとカウンタのチャンネルID
 // ----------------------------------------------------
-// 【重要】
+// 【重要】ご自身の環境に合わせてIDを設定してください
 // 1. LOG_CHANNEL_ID: 詳細な配布ログをEmbedで送信するチャンネルのID
 const LOG_CHANNEL_ID = '1448256554624094241'; 
 // 2. COUNTER_CHANNEL_ID: チャンネル名自体に数字が含まれる、更新対象のチャンネルID
 const COUNTER_CHANNEL_ID = '1448256554624094241'; 
-// 例: COUNTER_CHANNEL_ID = '123456789012345678'; 
 // ----------------------------------------------------
 
 
-// 💡 配布アイテムのデータ定義 (省略。変更なし)
+// 💡 配布アイテムのデータ定義 (commands/free-gift.js と共通)
 const items = [
     { name: '１. 業者パック１', value: 'pack1', url: 'https://www.mediafire.com/file/dvt9wkt5iw60asg/coc.txt/file' },
     { name: '２. 業者パック２', value: 'pack2', url: 'https://www.mediafire.com/file/dvt9wkt5iw60asg/coc.txt/file' },
@@ -26,12 +25,11 @@ const items = [
 ];
 
 // ----------------------------------------------------
-// 🛠️ チャンネル名のカウンタを更新し、ログを送信する処理 (大幅に修正)
+// 🛠️ チャンネル名のカウンタを更新し、ログを送信する処理
 // ----------------------------------------------------
 async function updateCounterAndLog(client, user, itemName) {
     let newCount = 0;
-    let baseChannelName = ''; // 例: '配布実績：'
-
+    
     try {
         // 1. チャンネル名カウンタの更新処理
         const counterChannel = await client.channels.fetch(COUNTER_CHANNEL_ID);
@@ -43,16 +41,18 @@ async function updateCounterAndLog(client, user, itemName) {
             const currentCount = match ? parseInt(match[1], 10) : 0;
             newCount = currentCount + 1;
 
-            // 数字以外の部分を抽出 (例: "配布実績-123" -> "配布実績-")
-            baseChannelName = currentName.replace(match ? match[0] : '', '').trim();
+            // 数字以外の部分を抽出（例: "配布実績：123" -> "配布実績："）
+            let baseChannelName = currentName.replace(match ? match[0] : '', '').trim();
+            // 抽出後の名前に接尾辞がないか確認
             if (baseChannelName.endsWith('-') || baseChannelName.endsWith('：')) {
-                 baseChannelName = baseChannelName.slice(0, -1);
-            }
-            if (baseChannelName === '') {
+                 // 末尾の記号は残す
+            } else if (baseChannelName === '') {
                 baseChannelName = '配布実績：'; // 数字以外の部分がなかった場合のデフォルト名
+            } else {
+                 baseChannelName += '：'; // 例: "実績" -> "実績："
             }
-
-            const newName = `${baseChannelName} ${newCount}`;
+            
+            const newName = `${baseChannelName}${newCount}`;
             
             // チャンネル名を新しい名前に更新
             await counterChannel.setName(newName);
@@ -64,7 +64,7 @@ async function updateCounterAndLog(client, user, itemName) {
         
     } catch (error) {
         // チャンネル名更新時のエラー (権限不足、レートリミットなど)
-        console.error('[FreeGift] チャンネル名更新中にエラーが発生しました:', error);
+        console.error('[FreeGift] チャンネル名更新中にエラーが発生しました:', error.message);
     }
     
     // 2. 詳細ログのEmbed送信処理 (LOG_CHANNEL_IDへ)
@@ -75,7 +75,6 @@ async function updateCounterAndLog(client, user, itemName) {
              const logEmbed = new EmbedBuilder()
                 .setColor('#3498db')
                 .setTitle('📥 配布アイテム受取ログ')
-                // チャンネル名カウンタが更新できていれば、その数字を使う
                 .setDescription(`**チャンネルカウンタ実績:** ${newCount} 件`) 
                 .addFields(
                     { name: '👤 受け取ったユーザー', value: `${user.tag} (${user.id})`, inline: true },
@@ -87,24 +86,30 @@ async function updateCounterAndLog(client, user, itemName) {
             await logChannel.send({ embeds: [logEmbed] });
         }
     } catch (error) {
-         console.error('[FreeGift] 詳細ログの送信に失敗しました:', error);
+         console.error('[FreeGift] 詳細ログの送信に失敗しました:', error.message);
     }
 }
 
 
-// ----------------------------------------------------
-// 🚀 イベントハンドラの関数 (handleFreeGiftInteraction)
-// ----------------------------------------------------
-// ※ この部分は前回のコードとほぼ同じですが、updateCounterAndLogの引数を調整しています。
-
+/**
+ * free-gift関連のインタラクションを一括処理する関数
+ * @param {import('discord.js').Interaction} interaction 
+ * @param {import('discord.js').Client} client 
+ * @returns {Promise<boolean>} 処理した場合はtrue、関係ないIDならfalse
+ */
 export async function handleFreeGiftInteraction(interaction, client) {
     
-    // 省略 (ボタン・メニューの処理ロジックは前回通りで変更なし)
-    // ... [ボタン処理: free_gift_purchase] ...
+    // =================================================
+    // 1. 「無料ギフト購入」ボタンが押された時の処理
+    // =================================================
     if (interaction.isButton() && interaction.customId === 'free_gift_purchase') {
-        // ... (省略: セレクトメニュー表示) ...
+        
+        // 🚨 修正点: Unknown interactionを避けるため、まず deferReply を実行
+        await interaction.deferReply({ ephemeral: true });
+        
         try {
-             const selectMenu = new StringSelectMenuBuilder()
+            // セレクトメニューの作成
+            const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('free_gift_select')
                 .setPlaceholder('受け取りたいアイテムを選択してください')
                 .addOptions(items.map(item => ({
@@ -112,27 +117,44 @@ export async function handleFreeGiftInteraction(interaction, client) {
                     description: `${item.name}をDMで受け取ります`,
                     value: item.value,
                 })));
+
             const row = new ActionRowBuilder().addComponents(selectMenu);
-            await interaction.reply({ content: '⬇️ アイテムを選択してください。', components: [row], ephemeral: true });
-            return true;
+
+            // deferReply への応答として editReply を使用
+            await interaction.editReply({
+                content: '⬇️ アイテムを選択してください。',
+                components: [row],
+            });
+            
+            return true; 
+
         } catch (error) {
-            console.error('[FreeGift] ボタン処理エラー:', error);
+            console.error('[FreeGift] ボタン処理エラー:', error.message);
+            // 処理を試みたので true を返す
             return true;
         }
     }
 
-    // ... [セレクトメニュー処理: free_gift_select] ...
+    // =================================================
+    // 2. メニューでアイテムが選択された時の処理
+    // =================================================
     if (interaction.isStringSelectMenu() && interaction.customId === 'free_gift_select') {
+        
         const selectedValue = interaction.values[0];
         const selectedItem = items.find(item => item.value === selectedValue);
 
         if (!selectedItem) {
-            await interaction.reply({ content: '❌ 無効なアイテムです。', ephemeral: true });
+            // セレクトメニュー自体は ephemeral なので update で応答
+            await interaction.update({ content: '❌ 無効なアイテムが選択されました。', components: [] });
             return true;
         }
 
         try {
-            await interaction.update({ content: `🔄 **${selectedItem.name}** をDMに送信中...`, components: [] });
+            // 🔄 interaction.update を使用して既存のメニューメッセージをローディング表示に上書き
+            await interaction.update({ 
+                content: `🔄 **${selectedItem.name}** をDMに送信中...`, 
+                components: [] 
+            });
 
             const user = interaction.user;
 
@@ -140,32 +162,41 @@ export async function handleFreeGiftInteraction(interaction, client) {
             const dmEmbed = new EmbedBuilder()
                 .setColor('#f1c40f')
                 .setTitle(`🎁 ${selectedItem.name} を受け取りました！`)
-                .setDescription(`以下のリンクからダウンロードまたはアクセスしてください。\n\n**🔗 リンク:** [こちらをクリック](${selectedItem.url})`)
+                .setDescription(`以下のリンクからダウンロードまたはアクセスしてください。\n\n**🔗 リンク:** [こちらをクリック](${selectedItem.url})\n\n※リンク切れの場合は管理者へご連絡ください。`)
                 .setTimestamp();
             
             await user.send({ embeds: [dmEmbed] });
 
-            // --- チャンネル名カウンタ更新処理を実行 ---
+            // --- チャンネル名カウンタ更新と詳細ログ送信処理を実行 ---
             await updateCounterAndLog(client, user, selectedItem.name);
             
             // --- 完了メッセージ ---
+            // updateしたメッセージをさらに編集して完了通知
             await interaction.editReply({
-                content: `✅ **${selectedItem.name}** をDMに送信しました！`,
+                content: `✅ **${selectedItem.name}** をDMに送信しました！\n(DMが届かない場合は、DM設定を許可にしてください)`,
                 components: []
             });
 
         } catch (error) {
-            // ... (エラーハンドリングは省略。前回と同じ) ...
              console.error(`[FreeGift] 送信エラー: ${error.message}`);
+             
+             // ユーザーにエラーを通知 (DM失敗など)
              if (interaction.deferred || interaction.replied) {
-                 await interaction.editReply({ content: '❌ DMの送信に失敗しました。', components: [] }).catch(() => {});
+                 await interaction.editReply({ 
+                     content: '❌ DMの送信または処理に失敗しました。', 
+                     components: [] 
+                 }).catch(() => {});
              } else {
-                 await interaction.reply({ content: '❌ エラーが発生しました。', ephemeral: true }).catch(() => {});
+                 await interaction.reply({ 
+                     content: '❌ エラーが発生しました。', 
+                     ephemeral: true 
+                 }).catch(() => {});
              }
         }
         
         return true; 
     }
 
+    // 関係ないインタラクションの場合は false を返す
     return false;
 }
