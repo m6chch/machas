@@ -1,6 +1,6 @@
 import { Events } from 'discord.js';
-// 🚨 free-giftのロジックは 'handlers/free-gift-handler.js' に分離されました
-import { handleFreeGiftInteraction } from '../handlers/free-gift-handler.js';
+// 🚨 free-giftのロジックは 'events/free-gift.js' に分離されました
+import { handleFreeGiftInteraction } from '../events/free-gift.js';
 
 export default {
     name: Events.InteractionCreate,
