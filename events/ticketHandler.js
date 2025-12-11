@@ -25,6 +25,7 @@ export default {
     once: false,
 
     async execute(interaction, client) {
+        // コマンド実行時の処理は含まれていません
         if (!interaction.isButton()) return;
 
         const { customId, guild, user, channel, member } = interaction;
@@ -44,7 +45,8 @@ export default {
             // チャンネル作成
             try {
                 const ticketChannel = await guild.channels.create({
-                    name: `ticket-${user.username}`,
+                    // 🎫｜ユーザー名（ユーザーID）の形式に変更
+                    name: `🎫｜${user.username}（${user.id}）`, 
                     type: ChannelType.GuildText,
                     parent: CATEGORY_ID,
                     permissionOverwrites: [
