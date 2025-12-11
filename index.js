@@ -70,10 +70,20 @@ if (fs.existsSync(eventsPath)) {
 
     for (const file of eventFiles) {
         const filePath = path.join(eventsPath, file);
-        const eventModule = await import(`file://${filePath}`);
+        
+        let eventModule;
+        try {
+            // 絶対パスとしてインポート
+            eventModule = await import(`file://${filePath}`);
+        } catch (e) {
+            console.error(`[イベントローダー] ❌ ファイル ${file} のインポート中にエラーが発生しました:`, e.message);
+            continue; // 次のファイルへスキップ
+        }
+        
         const event = eventModule.default;
 
-        if (event.name) {
+        // 🚨 修正: event が undefined ではないか、必要なプロパティを持っているかを厳密にチェック
+        if (event && event.name && typeof event.execute === 'function') {
             if (event.once) {
                 client.once(event.name, (...args) => event.execute(...args, client));
             } else {
@@ -81,7 +91,8 @@ if (fs.existsSync(eventsPath)) {
             }
             console.log(`[イベントローダー] ✅ イベントファイル: ${file} (イベント名: ${event.name}) を読み込みました。`);      
         } else {
-            console.warn(`[イベントローダー] ⚠️ ${file} には必要な "name" プロパティがありません。`);
+            // event.name が undefined だった場合にこの警告が出る
+            console.warn(`[イベントローダー] ⚠️ ${file} は有効なイベント形式ではありません。スキップします。`);
         }
     }
     console.log(`---`);
