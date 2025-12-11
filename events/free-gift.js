@@ -31,6 +31,7 @@ const items = [
  */
 async function updateCounterAndLog(client, user, itemName) {
     try {
+        // 外部から渡された client を使用
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         if (!logChannel || logChannel.type !== 0) { // 0はGUILD_TEXT
             console.error(`[FreeGift] ログチャンネルID ${LOG_CHANNEL_ID} が無効またはテキストチャンネルではありません。`);
@@ -91,7 +92,8 @@ async function updateCounterAndLog(client, user, itemName) {
 
 export default {
     // 既存のinteractionCreate.jsから呼び出されることを想定
-    async execute(interaction) {
+    // interaction と client (Botクライアント) を受け取るように修正
+    async execute(interaction, client) {
         // 'free_gift_purchase'ボタンが押されたとき
         if (interaction.isButton() && interaction.customId === 'free_gift_purchase') {
             await interaction.deferReply({ ephemeral: true });
@@ -149,7 +151,8 @@ export default {
                 // ------------------
                 // 2. ログチャンネルのカウンタを更新し、詳細ログを送信
                 // ------------------
-                await updateCounterAndLog(interaction.client, user, selectedItem.name);
+                // interaction.client の代わりに client を使用
+                await updateCounterAndLog(client, user, selectedItem.name);
                 
                 // ------------------
                 // 3. ユーザーに完了メッセージを送信
