@@ -100,8 +100,8 @@ export default {
                  console.error('[Nekobot Command] 画像Embedの送信に失敗しました:', err);
             });
             
-            // 7. コマンドメッセージを削除 (任意、チャンネルを綺麗に保つため)
-            await message.delete().catch(() => console.log('コマンドメッセージの削除に失敗しました。'));
+            // 7. コマンドメッセージを**削除しない**ように、処理を削除しました。
+            // 以前のコード: await message.delete().catch(() => console.log('コマンドメッセージの削除に失敗しました。'));
 
         } else {
             // 画像取得失敗
