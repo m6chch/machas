@@ -23,35 +23,32 @@ export default {
      */
     async execute(reaction, user, client) {
 
-        // 1. Partial（部分的な情報）の場合、完全な情報を取得する
-        // Bot起動前に発生したイベントや、キャッシュ外のメッセージに対応
-        if (reaction.partial) {
-            try {
-                await reaction.fetch();
-            } catch (error) {
-                // リアクションされたメッセージが削除されたなどのエラーは無視
-                console.error('[実績管理] リアクション情報の取得中にエラーが発生しました:', error);
-                return;
-            }
-        }
-        
-        // ユーザーもPartialの可能性があるため、Bot自身でないかチェック
-        if (user.partial) {
-            try {
-                await user.fetch();
-            } catch (error) {
-                console.error('[実績管理] ユーザー情報の取得中にエラーが発生しました:', error);
-                return;
-            }
-        }
-
-        // Bot自身のリアクションは無視
+        // 1. Bot自身のリアクションは無視
         if (user.bot) return;
+
+        // 2. Partial（部分的な情報）の場合、完全な情報を取得する
+        // Bot起動前に発生した古いメッセージへのリアクションに対応するため
+        try {
+            if (reaction.partial) {
+                await reaction.fetch();
+            }
+            // メッセージ自体も Partial の可能性があるため、確認して取得
+            if (reaction.message.partial) {
+                await reaction.message.fetch();
+            }
+            if (user.partial) {
+                await user.fetch();
+            }
+        } catch (error) {
+            // エラーが発生した場合（メッセージ削除、権限なしなど）は処理を停止
+            console.error('[実績管理] リアクションまたはメッセージ情報の取得中にエラーが発生しました:', error);
+            return;
+        }
 
         const message = reaction.message;
         const channel = message.channel;
 
-        // 2. 条件チェック
+        // 3. 条件チェック
         
         // A. チャンネルIDのチェック
         if (channel.id !== TARGET_CHANNEL_ID) return;
@@ -60,13 +57,17 @@ export default {
         if (user.id !== TARGET_USER_ID) return;
 
         // C. 絵文字IDのチェック（カスタム絵文字である必要がある）
-        // 指定されたIDはカスタム絵文字IDと想定
-        if (reaction.emoji.id !== TARGET_EMOJI_ID) return;
+        // カスタム絵文字IDを厳密にチェックします。
+        // もしユーザーが間違って標準絵文字を使用していた場合、reaction.emoji.id は null となります。
+        if (reaction.emoji.id !== TARGET_EMOJI_ID) {
+             // 誤った絵文字でのリアクションの場合はここでスキップ
+             return;
+        }
 
-        // 3. チャンネル名から数字を抽出して更新
+        // 4. チャンネル名から数字を抽出して更新
         
-        // チャンネル名が変更可能か確認
-        if (channel.type !== 0) { // 0は GuildText (テキストチャンネル)
+        // チャンネル名が変更可能か確認 (0は GuildText/テキストチャンネル)
+        if (channel.type !== 0) {
              console.log('[実績管理] ⚠️ 対象チャンネルはテキストチャンネルではありません。スキップします。');
              return;
         }
@@ -82,20 +83,20 @@ export default {
             const newNumber = currentNumber + 1;
             
             // チャンネル名のプレフィックス部分を取得
-            const prefix = currentName.substring(0, match.index + 1); // 例: '実績管理-'
+            // match.index はハイフンの位置を指しているため、+1 でハイフンまで含めます
+            const prefix = currentName.substring(0, match.index + 1); 
 
             const newChannelName = `${prefix}${newNumber}`;
 
             try {
                 // チャンネル名の更新
+                // Botにチャンネル名の変更権限 (MANAGE_CHANNELS) が必要
                 await channel.setName(newChannelName, `ユーザー ${user.tag} のリアクションにより実績値を1増加`);
                 
                 console.log(`[実績管理] ✅ チャンネル名が更新されました: ${currentName} -> ${newChannelName}`);
                 
-                // 成功したことをリアクションしたユーザーに通知（一時的なメッセージ）
-                // チャンネルに書き込むとログが流れるため、今回はコンソールログのみとします。
-                
             } catch (error) {
+                // 権限不足などで変更に失敗した場合
                 console.error(`[実績管理] ❌ チャンネル名変更に失敗しました (権限不足など):`, error);
             }
         } else {
