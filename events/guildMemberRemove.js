@@ -1,18 +1,20 @@
-// 必要なクラスをインポート
-const { Events, EmbedBuilder } = require('discord.js');
+// 必要なクラスをインポート (require -> import)
+import { Events, EmbedBuilder } from 'discord.js';
 
 // ターゲットサーバーIDとチャンネルID
+// NOTE: 実際のサーバーID/チャンネルIDを安全に管理するために環境変数を使用することを推奨します。
 const TARGET_GUILD_ID = '1448245012239356027'; // 対象サーバーID
-const TARGET_CHANNEL_ID = '1448255290985414656'; // 送信先チャンネルID
+const TARGET_CHANNEL_ID = '1448255290985414656'; // 送信先チャンネルID (参加時と同じチャンネルを想定)
 
-module.exports = {
+// module.exports -> export default
+export default {
     // イベント名を設定
     name: Events.GuildMemberRemove,
     // 一度だけ実行するかどうか
     once: false,
     /**
-     * メンバーがサーバーから退出したときに実行されます。
-     * @param {import('discord.js').GuildMember | import('discord.js').PartialGuildMember} member - 退出したメンバーオブジェクト
+     * メンバーがサーバーを退出したときに実行されます。
+     * @param {import('discord.js').GuildMember} member - 退出したメンバーオブジェクト
      */
     async execute(member) {
         // 対象外のサーバーIDの場合は処理を終了
@@ -20,8 +22,8 @@ module.exports = {
             return;
         }
 
-        // 退出時のメンバー数を取得（ただし、この時点ではまだ退出前のメンバー数が反映されている可能性があるため注意が必要）
-        // 正確な退出後の人数を取得するには、ギルドから再度フェッチする必要がありますが、ここではシンプルに `memberCount` を使用します。
+        // ギルド内のメンバー数を取得（ボットを含む）
+        // NOTE: 退出処理が行われた直後のため、この時点での memberCount は退出後の人数です。
         const memberCount = member.guild.memberCount;
 
         // ターゲットチャンネルを取得
@@ -37,13 +39,14 @@ module.exports = {
         const leaveEmbed = new EmbedBuilder()
             .setColor(0xFF0000) // 赤色
             .setTitle('メンバー退出')
-            .setDescription(`${member.user.tag}がサーバーから退出しました。`)
-            // メンバーのメンションは、退室後は機能しないため、タグ名を表示
+            // ユーザー情報は member.user から取得
+            .setDescription(`${member.user.tag} がサーバーを去りました。`)
             .addFields(
-                { name: '現在のサーバー人数', value: `${memberCount}人`, inline: true }
+                { name: '現在のサーバー人数', value: `${memberCount}人`, inline: true },
+                { name: 'ユーザーID', value: member.id, inline: false },
             )
             .setTimestamp()
-            .setThumbnail(member.user.displayAvatarURL({ extension: 'png' }));
+            .setFooter({ text: 'またの参加をお待ちしております。' });
 
         try {
             // チャンネルに埋め込みメッセージを送信
