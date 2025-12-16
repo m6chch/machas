@@ -1,11 +1,13 @@
-// 必要なクラスをインポート
-const { Events, EmbedBuilder } = require('discord.js');
+// 必要なクラスをインポート (require -> import)
+import { Events, EmbedBuilder } from 'discord.js';
 
 // ターゲットサーバーIDとチャンネルID
+// NOTE: 実際のサーバーID/チャンネルIDを安全に管理するために環境変数を使用することを推奨します。
 const TARGET_GUILD_ID = '1448245012239356027'; // 対象サーバーID
 const TARGET_CHANNEL_ID = '1448255290985414656'; // 送信先チャンネルID
 
-module.exports = {
+// module.exports -> export default
+export default {
     // イベント名を設定
     name: Events.GuildMemberAdd,
     // 一度だけ実行するかどうか
