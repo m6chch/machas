@@ -1,55 +1,73 @@
-// 必要なクラスをインポート
-const { Events, EmbedBuilder } = require('discord.js');
+import { Events, EmbedBuilder } from 'discord.js';
 
 // --- 定数設定 (neko.jsと同期) ---
-// BotがターゲットとするNSFWチャンネルID
 const TARGET_CHANNEL_ID = '1449373757352181821';
-// コマンドのプレフィックス
 const COMMAND_PREFIX = 'm!r';
-// NSFW画像タイプ
 const NSFW_TYPES = ['hentai', 'anal', '4k', 'ass', 'lewd', 'pgif']; 
-// SFW画像タイプ
 const SFW_TYPES = ['neko', 'waifu', 'kitsune', 'thigh'];
 // ----------------
 
-// Botが以前送信したヘルプメッセージを識別するためのフッターテキストの一部
-const HELP_FOOTER_TEXT_IDENTIFIER = 'このメッセージはコマンド実行時に再送信されます。';
+// スケジューラーのタイマーIDを保持
+let helpTimer = null;
 
 /**
- * 過去にBotが送信したヘルプメッセージを検索し、削除します。
- * @param {import('discord.js').TextChannel} channel - 処理対象のチャンネル
- * @param {string} botId - BotのユーザーID
+ * 次にメッセージを送信すべき時刻（00:00 または 12:00）を計算し、
+ * 現在時刻からの遅延時間（ミリ秒）を返します。
+ * @returns {{nextSendTime: Date, delay: number}}
  */
-async function deleteOldHelpMessage(channel, botId) {
-    try {
-        // チャンネル履歴から直近50件のメッセージを取得
-        const messages = await channel.messages.fetch({ limit: 50 });
-        
-        // Botが送信し、かつヘルプメッセージとして識別できるメッセージを検索
-        const oldHelpMessage = messages.find(msg => 
-            msg.author.id === botId && 
-            msg.embeds.length > 0 &&
-            msg.embeds[0].footer?.text.includes(HELP_FOOTER_TEXT_IDENTIFIER)
-        );
+function getNextSendTimeAndDelay() {
+    const now = new Date();
+    let nextSendTime = new Date(now);
 
-        if (oldHelpMessage) {
-            await oldHelpMessage.delete();
-            console.log(`[Nekobot Help] 🧹 古いヘルプメッセージ (ID: ${oldHelpMessage.id}) を削除しました。`);
-        }
-    } catch (error) {
-        // 権限不足などでメッセージの削除に失敗した場合
-        console.error('[Nekobot Help] ⚠️ 古いヘルプメッセージの削除に失敗しました:', error.message);
+    // ターゲット時刻: 00:00 (深夜) と 12:00 (正午)
+    const targetHours = [0, 12];
+    let nextTargetHour = -1;
+
+    // 現在時刻が12:00未満の場合、次のターゲットは12:00
+    if (now.getHours() < 12) {
+        nextTargetHour = 12;
+    } else {
+        // 現在時刻が12:00以降の場合、次のターゲットは翌日の00:00
+        nextTargetHour = 0;
+        nextSendTime.setDate(now.getDate() + 1); // 日付を翌日に設定
     }
+
+    nextSendTime.setHours(nextTargetHour, 0, 0, 0); // 時刻を0分0秒0ミリ秒に設定
+
+    // ただし、Botが起動した瞬間に既にターゲット時刻をわずかに過ぎていた場合
+    // (例: 12:00:01に起動) は、次のターゲット（翌日の00:00）を設定し直す
+    if (nextSendTime.getTime() <= now.getTime()) {
+         // 日付をさらに翌日にするか、時間を12時間進める
+         if (nextTargetHour === 12) {
+             nextSendTime.setDate(now.getDate() + 1);
+             nextSendTime.setHours(0, 0, 0, 0); // 翌日00:00
+         } else { // nextTargetHour === 0 の場合
+             nextSendTime.setDate(now.getDate());
+             nextSendTime.setHours(12, 0, 0, 0); // 12:00 今日
+         }
+         // 上のロジックがgetNextSendTimeを常に未来に設定するため、この再計算は保険
+         const delay = nextSendTime.getTime() - now.getTime();
+         console.warn(`[Nekobot Help] ⚠️ スケジュールが過去であったため、次の送信時刻を調整しました。遅延: ${delay}ms`);
+         return { nextSendTime, delay };
+    }
+
+    const delay = nextSendTime.getTime() - now.getTime();
+
+    return { nextSendTime, delay };
 }
 
-
-// --- ヘルプメッセージ送信関数（コマンドトリガーに変更） ---
+// --- 時刻指定ヘルプメッセージ送信関数 ---
 /**
- * コマンドが使用された直後にヘルプメッセージをチャンネルに送信します。
- * @param {import('discord.js').Message} message - 受信したメッセージオブジェクト
+ * ヘルプメッセージをチャンネルに送信します。
+ * @param {import('discord.js').Client} client
  */
-async function sendHelpMessage(message) {
-    const { client, channel, author } = message;
+async function sendTimedHelp(client) {
+    const channel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
+    
+    if (!channel) {
+        console.error(`[Nekobot Help] ⚠️ ターゲットチャンネルID ${TARGET_CHANNEL_ID} が見つかりません。`);
+        return;
+    }
 
     // Discordのルールに従い、NSFWチャンネルでのみ実行を許可
     if (!channel.nsfw) {
@@ -57,10 +75,6 @@ async function sendHelpMessage(message) {
         return; 
     }
 
-    // 1. 以前のヘルプメッセージを削除
-    await deleteOldHelpMessage(channel, client.user.id);
-
-    // 2. 新しいヘルプメッセージを作成
     const helpEmbed = new EmbedBuilder()
         .setColor('#e74c3c') 
         .setTitle('🔞 NekoBot 画像コマンドの使い方')
@@ -77,39 +91,58 @@ async function sendHelpMessage(message) {
                 inline: false 
             }
         )
-        // 識別子を含んだフッター
-        .setFooter({ text: HELP_FOOTER_TEXT_IDENTIFIER })
+        .setFooter({ text: 'このメッセージは毎日00:00と12:00に自動送信されます。' })
         .setTimestamp();
 
-    // 3. チャンネルに埋め込みメッセージを送信
     await channel.send({ embeds: [helpEmbed] }).catch(err => {
         console.error('[Nekobot Help] ヘルプメッセージの送信に失敗しました:', err);
     });
 
-    console.log(`[Nekobot Help] ヘルプメッセージを送信しました。トリガーユーザー: ${author.tag}`);
+    console.log(`[Nekobot Help] ヘルプメッセージを送信しました。次回の送信をスケジュールします。`);
+
+    // メッセージ送信後、次回の送信を再スケジュール
+    scheduleNextHelp(client);
 }
 
-module.exports = {
-    // ユーザーからのメッセージ受信時に実行
-    name: Events.MessageCreate,
-    once: false,
+/**
+ * 次回のヘルプメッセージ送信をスケジュールします。
+ * @param {import('discord.js').Client} client
+ */
+function scheduleNextHelp(client) {
+    // 既存のタイマーがあればクリア
+    if (helpTimer) {
+        clearTimeout(helpTimer);
+    }
+    
+    const { nextSendTime, delay } = getNextSendTimeAndDelay();
+
+    // 次回送信までの遅延時間が長すぎる、または短すぎる場合のチェック（保険）
+    if (delay <= 0) {
+        console.error('[Nekobot Help] 🚨 遅延時間が無効です。スケジューリングを中止します。');
+        return;
+    }
+
+    // 次回送信をスケジュール
+    helpTimer = setTimeout(() => {
+        sendTimedHelp(client);
+    }, delay);
+
+    console.log(`[Nekobot Help] 次回ヘルプメッセージの送信は ${nextSendTime.toLocaleString()} (ローカルタイムゾーン) にスケジュールされました。`);
+}
+
+
+export default {
+    // Botの起動準備が完了したときに実行
+    name: Events.ClientReady,
+    once: true,
     
     /**
-     * @param {import('discord.js').Message} message - 受信したメッセージオブジェクト
+     * @param {import('discord.js').Client} client
      */
-    async execute(message) {
-        // Bot自身のメッセージやDMは無視
-        if (message.author.bot || !message.inGuild()) return;
-
-        const content = message.content.trim();
-
-        // ターゲットチャンネルでのみ処理を実行
-        if (message.channelId !== TARGET_CHANNEL_ID) return;
-
-        // コマンドプレフィックスで始まっているかチェック
-        if (content.startsWith(COMMAND_PREFIX)) {
-            // コマンドが使用された場合にヘルプメッセージを送信
-            await sendHelpMessage(message);
-        }
+    async execute(client) {
+        console.log('[Nekobot Help] 00:00と12:00に自動送信するタイマーを開始します。');
+        
+        // 最初のスケジュールを開始
+        scheduleNextHelp(client);
     }
 };
